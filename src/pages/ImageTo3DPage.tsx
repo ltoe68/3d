@@ -5,9 +5,10 @@ import { AudioPlayer } from '@/components/AudioPlayer';
 import { DialoguePlayer } from '@/components/DialoguePlayer';
 import { UnifiedConfigEditor } from '@/components/UnifiedConfigEditor';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { UnifiedConfig, defaultUnifiedConfig } from '@/types/unified-config';
-import { SceneConfig } from '@/types/scene-config';
-import { AudioConfig } from '@/types/audio-config';
+import type { UnifiedConfig } from '@/types/unified-config';
+import type { SceneConfig } from '@/types/scene-config';
+import type { AudioConfig } from '@/types/audio-config';
+import { defaultUnifiedConfig } from '@/types/unified-config';
 
 const ImageTo3DPage = () => {
   const [unifiedConfig, setUnifiedConfig] = useState<UnifiedConfig>(defaultUnifiedConfig);

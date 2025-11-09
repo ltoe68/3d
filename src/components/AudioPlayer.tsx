@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { AudioConfig, MusicTrack } from '@/types/audio-config';
+import type { AudioConfig, MusicTrack } from '@/types/audio-config';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

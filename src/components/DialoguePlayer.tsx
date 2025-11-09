@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { AudioConfig, DialogueLine } from '@/types/audio-config';
+import type { AudioConfig, DialogueLine } from '@/types/audio-config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MessageSquare, Play, Pause, SkipForward } from 'lucide-react';

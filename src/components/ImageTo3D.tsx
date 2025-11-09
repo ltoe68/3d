@@ -7,7 +7,8 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Upload, RotateCcw } from 'lucide-react';
 import { SceneConfigEditor } from './SceneConfigEditor';
-import { SceneConfig, defaultSceneConfig } from '@/types/scene-config';
+import type { SceneConfig } from '@/types/scene-config';
+import { defaultSceneConfig } from '@/types/scene-config';
 import * as THREE from 'three';
 
 interface ImageTo3DProps {

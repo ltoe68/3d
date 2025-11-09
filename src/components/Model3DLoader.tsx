@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Upload, RotateCcw, Box, Film } from 'lucide-react';
-import { SceneConfig } from '@/types/scene-config';
+import type { SceneConfig } from '@/types/scene-config';
 import * as THREE from 'three';
 
 interface Model3DLoaderProps {

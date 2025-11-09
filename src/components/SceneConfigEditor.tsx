@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { SceneConfig, defaultSceneConfig } from '@/types/scene-config';
+import type { SceneConfig } from '@/types/scene-config';
+import { defaultSceneConfig } from '@/types/scene-config';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';

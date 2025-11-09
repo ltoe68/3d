@@ -1,4 +1,5 @@
-import { AudioConfig, musicPresets, dialoguePresets } from '@/types/audio-config';
+import type { AudioConfig } from '@/types/audio-config';
+import { musicPresets, dialoguePresets } from '@/types/audio-config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
