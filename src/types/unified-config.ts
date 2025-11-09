@@ -1,5 +1,7 @@
-import { SceneConfig, defaultSceneConfig } from './scene-config';
-import { AudioConfig, defaultAudioConfig } from './audio-config';
+import type { SceneConfig } from './scene-config';
+import type { AudioConfig } from './audio-config';
+import { defaultSceneConfig } from './scene-config';
+import { defaultAudioConfig } from './audio-config';
 
 export interface UnifiedConfig {
   scene: SceneConfig;
