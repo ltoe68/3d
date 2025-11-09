@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
-import { Upload, RotateCcw } from 'lucide-react';
+import { Upload, RotateCcw, Video } from 'lucide-react';
 import { SceneConfigEditor } from './SceneConfigEditor';
 import type { SceneConfig } from '@/types/scene-config';
 import { defaultSceneConfig } from '@/types/scene-config';
@@ -21,7 +21,10 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
   const [depth, setDepth] = useState([30]);
   const [resolution, setResolution] = useState([50]);
   const [sceneConfig, setSceneConfig] = useState<SceneConfig>(defaultSceneConfig);
+  const [videoFrames, setVideoFrames] = useState<string[]>([]);
+  const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -54,27 +57,122 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
     reader.readAsDataURL(file);
   }, [resolution]);
 
+  const handleVideoUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const video = document.createElement('video');
+    const url = URL.createObjectURL(file);
+    video.src = url;
+
+    video.onloadedmetadata = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const maxSize = resolution[0];
+      const scale = Math.min(maxSize / video.videoWidth, maxSize / video.videoHeight);
+      canvas.width = Math.floor(video.videoWidth * scale);
+      canvas.height = Math.floor(video.videoHeight * scale);
+
+      const frames: string[] = [];
+      const fps = 10; // Estrai 10 frame al secondo
+      const duration = video.duration;
+      const frameCount = Math.min(30, Math.floor(duration * fps)); // Max 30 frames
+
+      let currentFrame = 0;
+      const captureFrame = () => {
+        if (currentFrame >= frameCount) {
+          setVideoFrames(frames);
+          if (frames.length > 0) {
+            // Carica il primo frame
+            const img = new Image();
+            img.onload = () => {
+              const imgCanvas = document.createElement('canvas');
+              imgCanvas.width = canvas.width;
+              imgCanvas.height = canvas.height;
+              const imgCtx = imgCanvas.getContext('2d');
+              if (imgCtx) {
+                imgCtx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const data = imgCtx.getImageData(0, 0, canvas.width, canvas.height);
+                setImageData(data);
+                setImageUrl(frames[0]);
+              }
+            };
+            img.src = frames[0];
+          }
+          URL.revokeObjectURL(url);
+          return;
+        }
+
+        video.currentTime = currentFrame / fps;
+      };
+
+      video.onseeked = () => {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        frames.push(canvas.toDataURL('image/jpeg', 0.8));
+        currentFrame++;
+        captureFrame();
+      };
+
+      captureFrame();
+    };
+
+    video.load();
+  }, [resolution]);
+
   const handleReset = () => {
     setImageUrl(null);
     setImageData(null);
+    setVideoFrames([]);
+    setCurrentFrameIndex(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+    if (videoInputRef.current) {
+      videoInputRef.current.value = '';
+    }
   };
+
+  // Cambia frame del video
+  const handleFrameChange = useCallback((frameIndex: number) => {
+    if (frameIndex < 0 || frameIndex >= videoFrames.length) return;
+
+    setCurrentFrameIndex(frameIndex);
+    const frameUrl = videoFrames[frameIndex];
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const maxSize = resolution[0];
+      const scale = Math.min(maxSize / img.width, maxSize / img.height);
+      canvas.width = Math.floor(img.width * scale);
+      canvas.height = Math.floor(img.height * scale);
+
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        setImageData(data);
+        setImageUrl(frameUrl);
+      }
+    };
+    img.src = frameUrl;
+  }, [videoFrames, resolution]);
 
   return (
     <div className={className}>
       <Card>
         <CardHeader>
-          <CardTitle>Immagine to 3D Converter</CardTitle>
+          <CardTitle>Immagine / Video to 3D Converter</CardTitle>
           <CardDescription>
-            Carica un'immagine e trasformala in un modello 3D basato sulla luminosità
+            Carica un'immagine o un video e estrai personaggi 3D. Il sistema analizza la luminosità per creare profondità.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
             {/* Upload Section */}
-            <div className="flex gap-4">
+            <div className="flex gap-4 flex-wrap">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -83,12 +181,28 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
                 className="hidden"
                 id="image-upload"
               />
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                onChange={handleVideoUpload}
+                className="hidden"
+                id="video-upload"
+              />
               <Button
                 onClick={() => fileInputRef.current?.click()}
                 className="flex items-center gap-2"
               >
                 <Upload className="w-4 h-4" />
                 Carica Immagine
+              </Button>
+              <Button
+                onClick={() => videoInputRef.current?.click()}
+                variant="secondary"
+                className="flex items-center gap-2"
+              >
+                <Video className="w-4 h-4" />
+                Carica Video
               </Button>
               {imageUrl && (
                 <Button
@@ -101,6 +215,23 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
                 </Button>
               )}
             </div>
+
+            {/* Video Frame Selector */}
+            {videoFrames.length > 0 && (
+              <div className="space-y-2">
+                <Label>Frame Video: {currentFrameIndex + 1} / {videoFrames.length}</Label>
+                <Slider
+                  value={[currentFrameIndex]}
+                  onValueChange={(value) => handleFrameChange(value[0])}
+                  min={0}
+                  max={videoFrames.length - 1}
+                  step={1}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Scorri per selezionare il frame da cui estrarre il personaggio 3D
+                </p>
+              </div>
+            )}
 
             {/* Controls */}
             {imageUrl && (
@@ -129,16 +260,16 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
             )}
 
             {/* Preview Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Original Image */}
               {imageUrl && (
                 <div className="space-y-2">
-                  <Label>Immagine Originale</Label>
+                  <Label>Immagine Originale {videoFrames.length > 0 && `(Frame ${currentFrameIndex + 1})`}</Label>
                   <div className="border rounded-lg overflow-hidden bg-muted">
                     <img
                       src={imageUrl}
                       alt="Uploaded"
-                      className="w-full h-64 object-contain"
+                      className="w-full h-[700px] object-contain"
                     />
                   </div>
                 </div>
@@ -147,8 +278,8 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
               {/* 3D View */}
               {imageData && (
                 <div className="space-y-2">
-                  <Label>Vista 3D</Label>
-                  <div className="border rounded-lg overflow-hidden h-64" style={{ background: sceneConfig.background }}>
+                  <Label>Vista 3D Interattiva</Label>
+                  <div className="border rounded-lg overflow-hidden h-[700px]" style={{ background: sceneConfig.background }}>
                     <Canvas>
                       <PerspectiveCamera makeDefault position={[0, 0, 5]} />
                       <OrbitControls enableDamping />
@@ -181,9 +312,15 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
 
             {!imageUrl && (
               <div className="text-center p-12 border-2 border-dashed rounded-lg">
-                <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-muted-foreground">
-                  Carica un'immagine per iniziare la conversione 3D
+                <div className="flex justify-center gap-4 mb-4">
+                  <Upload className="w-12 h-12 text-muted-foreground" />
+                  <Video className="w-12 h-12 text-muted-foreground" />
+                </div>
+                <p className="text-muted-foreground mb-2 font-semibold">
+                  Carica un'immagine o un video per iniziare
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Il sistema estrarrà automaticamente i frame dal video e li convertirà in modelli 3D
                 </p>
               </div>
             )}
