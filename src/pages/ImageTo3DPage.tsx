@@ -1,25 +1,65 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ImageTo3D } from '@/components/ImageTo3D';
 import { Model3DLoader } from '@/components/Model3DLoader';
 import { AudioPlayer } from '@/components/AudioPlayer';
 import { DialoguePlayer } from '@/components/DialoguePlayer';
 import { UnifiedConfigEditor } from '@/components/UnifiedConfigEditor';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
 import type { UnifiedConfig } from '@/types/unified-config';
 import type { SceneConfig } from '@/types/scene-config';
 import type { AudioConfig } from '@/types/audio-config';
-import { defaultUnifiedConfig } from '@/types/unified-config';
+import { defaultUnifiedConfig, unifiedPresets } from '@/types/unified-config';
+
+const STORAGE_KEY = 'studio3d_saved_config';
 
 const ImageTo3DPage = () => {
-  const [unifiedConfig, setUnifiedConfig] = useState<UnifiedConfig>(defaultUnifiedConfig);
-  const [sceneConfig, setSceneConfig] = useState<SceneConfig>(defaultUnifiedConfig.scene);
-  const [audioConfig, setAudioConfig] = useState<AudioConfig>(defaultUnifiedConfig.audio);
+  // Carica configurazione salvata da localStorage o usa default
+  const [unifiedConfig, setUnifiedConfig] = useState<UnifiedConfig>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (error) {
+      console.error('Errore nel caricamento della configurazione salvata:', error);
+    }
+    return defaultUnifiedConfig;
+  });
+
+  const [sceneConfig, setSceneConfig] = useState<SceneConfig>(unifiedConfig.scene);
+  const [audioConfig, setAudioConfig] = useState<AudioConfig>(unifiedConfig.audio);
+
+  // Salva automaticamente in localStorage quando la configurazione cambia
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(unifiedConfig));
+      console.log('✅ Configurazione salvata automaticamente');
+    } catch (error) {
+      console.error('Errore nel salvataggio della configurazione:', error);
+    }
+  }, [unifiedConfig]);
 
   // Sincronizza la configurazione unificata quando cambia
   const handleUnifiedConfigChange = (config: UnifiedConfig) => {
     setUnifiedConfig(config);
     setSceneConfig(config.scene);
     setAudioConfig(config.audio);
+  };
+
+  // Gestisci il cambio di preset dal menu a tendina
+  const handlePresetChange = (presetName: string) => {
+    if (presetName === 'default') {
+      handleUnifiedConfigChange(defaultUnifiedConfig);
+    } else if (presetName === 'cinematico') {
+      handleUnifiedConfigChange(unifiedPresets.cinematico);
+    } else if (presetName === 'vitigni') {
+      handleUnifiedConfigChange(unifiedPresets.vitigni);
+    } else if (presetName === 'naturale') {
+      handleUnifiedConfigChange(unifiedPresets.naturale);
+    }
   };
 
   return (
@@ -32,6 +72,61 @@ const ImageTo3DPage = () => {
             Crea scene 3D da immagini, carica modelli 3D, aggiungi video e personalizza con musica e dialoghi
           </p>
         </div>
+
+        {/* Menu a Tendina Preset */}
+        <Card className="mb-8 p-6">
+          <div className="max-w-md mx-auto space-y-3">
+            <Label htmlFor="preset-select" className="text-lg font-semibold">
+              🎨 Seleziona Preset di Configurazione
+            </Label>
+            <Select onValueChange={handlePresetChange}>
+              <SelectTrigger id="preset-select" className="w-full">
+                <SelectValue placeholder="Scegli un preset o usa configurazione salvata" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">
+                  <div className="flex items-center gap-2">
+                    <span>⚙️</span>
+                    <div>
+                      <div className="font-semibold">Default</div>
+                      <div className="text-xs text-muted-foreground">Configurazione base</div>
+                    </div>
+                  </div>
+                </SelectItem>
+                <SelectItem value="cinematico">
+                  <div className="flex items-center gap-2">
+                    <span>🎬</span>
+                    <div>
+                      <div className="font-semibold">Cinematico</div>
+                      <div className="text-xs text-muted-foreground">Luci drammatiche + musica orchestrale</div>
+                    </div>
+                  </div>
+                </SelectItem>
+                <SelectItem value="vitigni">
+                  <div className="flex items-center gap-2">
+                    <span>🍇</span>
+                    <div>
+                      <div className="font-semibold">Vitigni</div>
+                      <div className="text-xs text-muted-foreground">Tema vinicolo con dialoghi</div>
+                    </div>
+                  </div>
+                </SelectItem>
+                <SelectItem value="naturale">
+                  <div className="flex items-center gap-2">
+                    <span>🌞</span>
+                    <div>
+                      <div className="font-semibold">Naturale</div>
+                      <div className="text-xs text-muted-foreground">Illuminazione morbida + suoni naturali</div>
+                    </div>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground text-center">
+              💾 Le tue personalizzazioni vengono salvate automaticamente e ricaricate all'avvio
+            </p>
+          </div>
+        </Card>
 
         <Tabs defaultValue="image" className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-6">
