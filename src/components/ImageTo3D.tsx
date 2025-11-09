@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
-import { Upload, RotateCcw, Video } from 'lucide-react';
+import { Upload, RotateCcw, Video, Volume2, Download } from 'lucide-react';
 import { SceneConfigEditor } from './SceneConfigEditor';
 import type { SceneConfig } from '@/types/scene-config';
 import { defaultSceneConfig } from '@/types/scene-config';
@@ -23,8 +23,12 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
   const [sceneConfig, setSceneConfig] = useState<SceneConfig>(defaultSceneConfig);
   const [videoFrames, setVideoFrames] = useState<string[]>([]);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
+  const [extractedAudioUrl, setExtractedAudioUrl] = useState<string | null>(null);
+  const [audioFileName, setAudioFileName] = useState<string>('');
+  const [isExtractingAudio, setIsExtractingAudio] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   const handleImageUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -61,9 +65,15 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Salva il nome del file per l'audio
+    setAudioFileName(file.name.replace(/\.[^/.]+$/, '') + '_audio.mp3');
+
     const video = document.createElement('video');
     const url = URL.createObjectURL(file);
     video.src = url;
+
+    // Estrai l'audio dal video
+    extractAudioFromVideo(file);
 
     video.onloadedmetadata = () => {
       const canvas = document.createElement('canvas');
@@ -121,17 +131,105 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
     video.load();
   }, [resolution]);
 
+  // Funzione per estrarre l'audio dal video
+  const extractAudioFromVideo = async (videoFile: File) => {
+    setIsExtractingAudio(true);
+    try {
+      // Crea un elemento video per caricare il file
+      const videoElement = document.createElement('video');
+      const videoUrl = URL.createObjectURL(videoFile);
+      videoElement.src = videoUrl;
+
+      await new Promise((resolve) => {
+        videoElement.onloadedmetadata = resolve;
+      });
+
+      // Crea un AudioContext
+      const audioContext = new AudioContext();
+
+      // Crea un MediaElementSource dal video
+      const source = audioContext.createMediaElementSource(videoElement);
+
+      // Crea un MediaStreamDestination
+      const destination = audioContext.createMediaStreamDestination();
+      source.connect(destination);
+
+      // Crea un MediaRecorder per registrare l'audio
+      const mediaRecorder = new MediaRecorder(destination.stream);
+      const audioChunks: Blob[] = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        setExtractedAudioUrl(audioUrl);
+        setIsExtractingAudio(false);
+
+        // Salva in localStorage (come base64)
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          try {
+            localStorage.setItem('extracted_audio', reader.result as string);
+            localStorage.setItem('audio_filename', audioFileName);
+            console.log('✅ Audio estratto e salvato');
+          } catch (error) {
+            console.error('Audio troppo grande per localStorage:', error);
+          }
+        };
+        reader.readAsDataURL(audioBlob);
+      };
+
+      // Avvia la registrazione e il video
+      mediaRecorder.start();
+      videoElement.play();
+
+      // Ferma la registrazione quando il video finisce o dopo 30 secondi
+      videoElement.onended = () => {
+        mediaRecorder.stop();
+        URL.revokeObjectURL(videoUrl);
+      };
+
+      setTimeout(() => {
+        if (mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+          videoElement.pause();
+          URL.revokeObjectURL(videoUrl);
+        }
+      }, Math.min(videoElement.duration * 1000, 30000)); // Max 30 secondi
+
+    } catch (error) {
+      console.error('Errore nell\'estrazione audio:', error);
+      setIsExtractingAudio(false);
+    }
+  };
+
   const handleReset = () => {
     setImageUrl(null);
     setImageData(null);
     setVideoFrames([]);
     setCurrentFrameIndex(0);
+    setExtractedAudioUrl(null);
+    setAudioFileName('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
     if (videoInputRef.current) {
       videoInputRef.current.value = '';
     }
+  };
+
+  // Download audio estratto
+  const downloadAudio = () => {
+    if (!extractedAudioUrl) return;
+    const a = document.createElement('a');
+    a.href = extractedAudioUrl;
+    a.download = audioFileName || 'extracted_audio.webm';
+    a.click();
   };
 
   // Cambia frame del video
@@ -164,9 +262,10 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
     <div className={className}>
       <Card>
         <CardHeader>
-          <CardTitle>Immagine / Video to 3D Converter</CardTitle>
+          <CardTitle>Immagine / Video to 3D Converter + Estrazione Audio</CardTitle>
           <CardDescription>
-            Carica un'immagine o un video e estrai personaggi 3D. Il sistema analizza la luminosità per creare profondità.
+            Carica un'immagine o un video e estrai personaggi 3D. Il sistema analizza la luminosità per creare profondità
+            e estrae automaticamente l'audio dai video come campione vocale.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -231,6 +330,58 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
                   Scorri per selezionare il frame da cui estrarre il personaggio 3D
                 </p>
               </div>
+            )}
+
+            {/* Audio Player - Campione Vocale Estratto */}
+            {isExtractingAudio && (
+              <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <Volume2 className="w-5 h-5 text-blue-600 animate-pulse" />
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      🎵 Estrazione audio dal video in corso...
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {extractedAudioUrl && (
+              <Card className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950 border-purple-200 dark:border-purple-800">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Volume2 className="w-5 h-5" />
+                    🎤 Campione Vocale Estratto
+                  </CardTitle>
+                  <CardDescription>
+                    Audio estratto dal video: {audioFileName}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <audio
+                    ref={audioRef}
+                    src={extractedAudioUrl}
+                    controls
+                    className="w-full"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={downloadAudio}
+                      variant="outline"
+                      className="flex items-center gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      Scarica Audio
+                    </Button>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-gray-900 rounded-lg border">
+                    <p className="text-sm text-muted-foreground">
+                      💡 <strong>Tip:</strong> Questo campione vocale è stato automaticamente estratto dal tuo video
+                      e salvato nel browser. Puoi usarlo per i tuoi progetti!
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* Controls */}
