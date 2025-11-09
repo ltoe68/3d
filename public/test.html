@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Studio 3D</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            font-size: 3em;
+            margin: 0 0 20px 0;
+        }
+        p {
+            font-size: 1.5em;
+            margin: 10px 0;
+        }
+        .success {
+            color: #4ade80;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Studio 3D Vitigni</h1>
+        <p class="success">✅ SERVER FUNZIONANTE!</p>
+        <p>Se vedi questo messaggio, il server è raggiungibile</p>
+        <p>Porta: 4000</p>
+        <p id="time"></p>
+    </div>
+    <script>
+        function updateTime() {
+            document.getElementById('time').textContent =
+                'Ora: ' + new Date().toLocaleTimeString('it-IT');
+        }
+        updateTime();
+        setInterval(updateTime, 1000);
+    </script>
+</body>
+</html>
