@@ -1,10 +1,7 @@
+import ImageTo3DPage from './pages/ImageTo3DPage'
+
 function App() {
-  return (
-    <div style={{ padding: '40px', textAlign: 'center' }}>
-      <h1>🎨 Studio 3D Vitigni</h1>
-      <p>Test - Server funzionante!</p>
-    </div>
-  )
+  return <ImageTo3DPage />
 }
 
 export default App
