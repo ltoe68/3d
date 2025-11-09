@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { UnifiedConfig, defaultUnifiedConfig, unifiedPresets } from '@/types/unified-config';
+import type { UnifiedConfig } from '@/types/unified-config';
+import { defaultUnifiedConfig, unifiedPresets } from '@/types/unified-config';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
