@@ -1,15 +1,25 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
-import { Upload, RotateCcw, Video, Volume2, Download } from 'lucide-react';
+import { Upload, RotateCcw, Video, Volume2, Download, Sparkles, Brain, Loader2 } from 'lucide-react';
 import { SceneConfigEditor } from './SceneConfigEditor';
 import type { SceneConfig } from '@/types/scene-config';
 import { defaultSceneConfig } from '@/types/scene-config';
 import * as THREE from 'three';
+import {
+  checkOllamaAvailability,
+  getAvailableModels,
+  analyzeImageWithAI,
+  removeBackgroundWithAI,
+  generateConfigFromAIAnalysis,
+  type ImageAnalysisResult
+} from '@/lib/ollama-ai';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 
 interface ImageTo3DProps {
   className?: string;
@@ -29,6 +39,31 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Stati per AI
+  const [isOllamaAvailable, setIsOllamaAvailable] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<ImageAnalysisResult | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>('llama3.2-vision');
+
+  // Controlla disponibilità Ollama all'avvio
+  useEffect(() => {
+    const checkAI = async () => {
+      const available = await checkOllamaAvailability();
+      setIsOllamaAvailable(available);
+      if (available) {
+        const models = await getAvailableModels();
+        setAvailableModels(models);
+        // Seleziona automaticamente un modello vision se disponibile
+        const visionModel = models.find(m =>
+          m.includes('vision') || m.includes('llava') || m.includes('qwen')
+        );
+        if (visionModel) setSelectedModel(visionModel);
+      }
+    };
+    checkAI();
+  }, []);
 
   const handleImageUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -258,14 +293,51 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
     img.src = frameUrl;
   }, [videoFrames, resolution]);
 
+  // Conversione intelligente con AI
+  const handleIntelligentConversion = async () => {
+    if (!imageUrl || !imageData) return;
+
+    setIsAnalyzing(true);
+    try {
+      // 1. Analizza l'immagine con AI
+      console.log('🤖 Analisi AI in corso con modello:', selectedModel);
+      const analysis = await analyzeImageWithAI(imageUrl, { model: selectedModel });
+      setAiAnalysis(analysis);
+
+      console.log('✅ Analisi completata:', analysis);
+
+      // 2. Rimuovi lo sfondo se necessario
+      let processedImageData = imageData;
+      if (analysis.hasBackground && analysis.confidence > 0.5) {
+        console.log('🎨 Rimozione sfondo...');
+        processedImageData = await removeBackgroundWithAI(imageData, analysis);
+        setImageData(processedImageData);
+      }
+
+      // 3. Applica configurazioni suggerite
+      const aiConfig = generateConfigFromAIAnalysis(analysis);
+      setDepth([aiConfig.depth]);
+
+      console.log('🎯 Configurazioni applicate:', aiConfig);
+
+      setIsAnalyzing(false);
+    } catch (error) {
+      console.error('Errore nella conversione intelligente:', error);
+      setIsAnalyzing(false);
+    }
+  };
+
   return (
     <div className={className}>
       <Card>
         <CardHeader>
-          <CardTitle>Immagine / Video to 3D Converter + Estrazione Audio</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="w-6 h-6" />
+            Studio 3D con AI - Conversione Intelligente
+          </CardTitle>
           <CardDescription>
-            Carica un'immagine o un video e estrai personaggi 3D. Il sistema analizza la luminosità per creare profondità
-            e estrae automaticamente l'audio dai video come campione vocale.
+            Carica immagini o video e lascia che l'intelligenza artificiale analizzi automaticamente i soggetti,
+            rimuova lo sfondo e suggerisca le migliori configurazioni 3D. Estrazione audio inclusa.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -304,16 +376,103 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
                 Carica Video
               </Button>
               {imageUrl && (
-                <Button
-                  onClick={handleReset}
-                  variant="outline"
-                  className="flex items-center gap-2"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Reset
-                </Button>
+                <>
+                  <Button
+                    onClick={handleReset}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Reset
+                  </Button>
+                  {isOllamaAvailable && (
+                    <Button
+                      onClick={handleIntelligentConversion}
+                      disabled={isAnalyzing}
+                      className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                    >
+                      {isAnalyzing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Analisi AI...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          Conversione Intelligente
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </>
               )}
             </div>
+
+            {/* AI Status Badge */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {isOllamaAvailable ? (
+                <Badge variant="default" className="bg-green-600">
+                  <Brain className="w-3 h-3 mr-1" />
+                  AI Ollama Attiva ({availableModels.length} modelli)
+                </Badge>
+              ) : (
+                <Alert>
+                  <Brain className="w-4 h-4" />
+                  <AlertDescription>
+                    <strong>AI non disponibile.</strong> Per usare l'analisi intelligente, installa Ollama:
+                    <code className="block mt-2 p-2 bg-muted rounded text-xs">
+                      # Mac/Linux<br/>
+                      curl https://ollama.ai/install.sh | sh<br/>
+                      ollama pull llama3.2-vision<br/><br/>
+                      # Oppure installa qwen2-vl per migliore analisi<br/>
+                      ollama pull qwen2-vl
+                    </code>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+
+            {/* AI Analysis Results */}
+            {aiAnalysis && (
+              <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950 dark:to-purple-950 border-indigo-200 dark:border-indigo-800">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="w-5 h-5" />
+                    Analisi AI Completata
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <Label className="text-sm font-semibold">Soggetto Principale:</Label>
+                    <p className="text-sm">{aiAnalysis.subject}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-semibold">Descrizione:</Label>
+                    <p className="text-sm text-muted-foreground">{aiAnalysis.description}</p>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <Badge variant={aiAnalysis.hasBackground ? "secondary" : "outline"}>
+                      {aiAnalysis.hasBackground ? "Con sfondo" : "Senza sfondo"}
+                    </Badge>
+                    <Badge variant="outline">Profondità: {aiAnalysis.suggestedDepth}</Badge>
+                    <Badge variant="outline">Luce: {aiAnalysis.suggestedLighting}</Badge>
+                    <Badge variant="outline">Confidenza: {Math.round(aiAnalysis.confidence * 100)}%</Badge>
+                  </div>
+                  {aiAnalysis.objects.length > 0 && (
+                    <div>
+                      <Label className="text-sm font-semibold">Oggetti Riconosciuti:</Label>
+                      <div className="flex gap-1 flex-wrap mt-1">
+                        {aiAnalysis.objects.map((obj, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs">
+                            {obj}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Video Frame Selector */}
             {videoFrames.length > 0 && (
@@ -462,17 +621,34 @@ export const ImageTo3D = ({ className }: ImageTo3DProps) => {
             </div>
 
             {!imageUrl && (
-              <div className="text-center p-12 border-2 border-dashed rounded-lg">
+              <div className="text-center p-12 border-2 border-dashed rounded-lg bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950">
                 <div className="flex justify-center gap-4 mb-4">
-                  <Upload className="w-12 h-12 text-muted-foreground" />
-                  <Video className="w-12 h-12 text-muted-foreground" />
+                  <Upload className="w-12 h-12 text-primary" />
+                  <Video className="w-12 h-12 text-primary" />
+                  {isOllamaAvailable && <Brain className="w-12 h-12 text-primary animate-pulse" />}
                 </div>
-                <p className="text-muted-foreground mb-2 font-semibold">
-                  Carica un'immagine o un video per iniziare
+                <p className="text-foreground mb-2 font-bold text-lg">
+                  🚀 Carica un'immagine o un video per iniziare
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  Il sistema estrarrà automaticamente i frame dal video e li convertirà in modelli 3D
+                <p className="text-sm text-muted-foreground mb-3">
+                  {isOllamaAvailable ? (
+                    <>
+                      L'<strong>AI analizzerà automaticamente</strong> il contenuto, identificherà i soggetti principali,
+                      rimuoverà lo sfondo e suggerirà le configurazioni 3D ottimali!
+                    </>
+                  ) : (
+                    <>
+                      Il sistema estrarrà frame dal video e convertirà in 3D.
+                      Installa Ollama per analisi AI avanzata!
+                    </>
+                  )}
                 </p>
+                {isOllamaAvailable && (
+                  <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-sm">
+                    <Sparkles className="w-4 h-4" />
+                    <span>AI Pronta - Conversione Intelligente Attiva</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
